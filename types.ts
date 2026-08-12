@@ -1,4 +1,3 @@
-
 export interface Prize {
   id: number;
   name: string;
@@ -16,7 +15,7 @@ export interface SpinResult {
 export interface ClaimRecord {
   name: string;
   phone: string;
-  selectedPrizeId: number;
+  selectedPrizeIds: number[];   // đổi từ single → array
   spin1PrizeId: number;
   spin2PrizeId: number | null;
   spin3PrizeId: number | null;
@@ -27,7 +26,7 @@ export interface AppState {
   name: string;
   phone: string;
   spins: SpinResult[];
-  selectedPrizeIndex: number | null;
+  selectedPrizeIds: number[];   // đổi từ single → array
   isClaimed: boolean;
   isSpinning: boolean;
   error: string | null;

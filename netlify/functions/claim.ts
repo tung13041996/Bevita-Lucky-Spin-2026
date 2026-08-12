@@ -8,14 +8,15 @@ export const handler: Handler = async (event) => {
 
   const body = JSON.parse(event.body || "{}") as {
     phone?: string;
-    selectedPrizeId?: number;
+    selectedPrizeIds?: number[];
   };
 
   const phone = (body.phone || "").trim();
-  const selectedPrizeId = Number(body.selectedPrizeId);
+  const selectedPrizeIds = body.selectedPrizeIds ?? [];
 
   if (!phone) return bad("Thiếu SĐT");
-  if (!selectedPrizeId) return bad("Thiếu phần quà chọn");
+  if (!Array.isArray(selectedPrizeIds) || selectedPrizeIds.length === 0)
+    return bad("Thiếu phần quà chọn");
 
   // Check participant exists and hasn't claimed
   const { data: p, error: pErr } = await supabase
@@ -28,7 +29,7 @@ export const handler: Handler = async (event) => {
   if (!p) return bad("SĐT chưa tham gia", 404);
   if (p.is_claimed) return bad("Số điện thoại này đã nhận thưởng", 409);
 
-  // Confirm selected prize is one of their spun prizes
+  // Confirm all selected prizes are from their spun prizes
   const { data: spins, error: sErr } = await supabase
     .from("spins")
     .select("prize_id")
@@ -36,16 +37,16 @@ export const handler: Handler = async (event) => {
 
   if (sErr) return json(500, { ok: false, message: sErr.message });
 
-  const prizeIds = (spins || []).map((x: any) => x.prize_id);
-  if (!prizeIds.includes(selectedPrizeId))
-    return bad("Phần quà chọn không hợp lệ", 400);
+  const spunIds = (spins || []).map((x: any) => x.prize_id);
+  const allValid = selectedPrizeIds.every((id) => spunIds.includes(id));
+  if (!allValid) return bad("Phần quà chọn không hợp lệ", 400);
 
-  // Mark as claimed
+  // Mark as claimed with array of selected prizes
   const { error: updErr } = await supabase
     .from("participants")
     .update({
       is_claimed: true,
-      selected_prize_id: selectedPrizeId,
+      selected_prize_ids: selectedPrizeIds,
       updated_at: new Date().toISOString(),
     })
     .eq("phone", phone);

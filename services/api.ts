@@ -6,7 +6,7 @@ export interface ParticipantData {
   name: string;
   spins: SpinResult[];
   isClaimed: boolean;
-  selectedPrizeId?: number | null;
+  selectedPrizeIds?: number[] | null;
 }
 
 async function getJSON(url: string) {
@@ -46,7 +46,7 @@ export const api = {
   async claim(record: ClaimRecord): Promise<boolean> {
     await postJSON(`${BASE}/claim`, {
       phone: record.phone,
-      selectedPrizeId: record.selectedPrizeId,
+      selectedPrizeIds: record.selectedPrizeIds,  // array
     });
     return true;
   },
