@@ -2,15 +2,15 @@
 export interface Prize {
   id: number;
   name: string;
-  qty: number;
-  image: string;
+  weight: number;
+  condition: string;
   color: string;
 }
 
 export interface SpinResult {
   prizeId: number;
   prizeName: string;
-  imagePath: string;
+  condition: string;
 }
 
 export interface ClaimRecord {

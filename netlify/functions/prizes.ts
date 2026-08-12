@@ -7,7 +7,7 @@ export const handler: Handler = async (event) => {
 
   const { data, error } = await supabase
     .from("prizes")
-    .select("id,name,color,image,qty")
+    .select("id,name,color,weight,condition")
     .order("id", { ascending: true });
 
   if (error) return json(500, { ok: false, message: error.message });

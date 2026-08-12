@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef } from 'react';
 import { Prize } from '../types';
 
@@ -11,22 +10,30 @@ interface WheelProps {
   canSpin?: boolean;
 }
 
-const Wheel: React.FC<WheelProps> = ({ prizes, isSpinning, onFinished, targetPrizeId, onSpinClick, canSpin }) => {
+const Wheel: React.FC<WheelProps> = ({
+  prizes,
+  isSpinning,
+  onFinished,
+  targetPrizeId,
+  onSpinClick,
+  canSpin,
+}) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rotationRef = useRef(0);
   const requestRef = useRef<number | undefined>(undefined);
-  const WHEEL_SIZE = 500; // Increased from 380
-  const CENTER_RADIUS = 45; // Increased from 35
+
+  const WHEEL_SIZE = 500;
+  const CENTER_RADIUS = 48;
 
   const drawWheel = (rotation: number) => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || prizes.length === 0) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
     const size = canvas.width;
     const center = size / 2;
-    const radius = size / 2 - 25;
+    const radius = size / 2 - 22;
     const sliceAngle = (2 * Math.PI) / prizes.length;
 
     ctx.clearRect(0, 0, size, size);
@@ -41,75 +48,73 @@ const Wheel: React.FC<WheelProps> = ({ prizes, isSpinning, onFinished, targetPri
       ctx.arc(center, center, radius, startAngle, endAngle);
       ctx.fillStyle = prize.color;
       ctx.fill();
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 1.5;
       ctx.strokeStyle = '#ffffff';
       ctx.stroke();
 
-      // Draw text
+      // Text label
       ctx.save();
       ctx.translate(center, center);
       ctx.rotate(startAngle + sliceAngle / 2);
       ctx.textAlign = 'right';
       ctx.fillStyle = '#1a1a1a';
-      
-      // Clean prize name by removing quantity suffix for display on the wheel
-      const fullText = prize.name.split(' — ')[0];
+
+      // Split long name into 2 lines max
+      const fullText = prize.name;
       const words = fullText.split(' ');
       const lines: string[] = [];
-      let currentLine = '';
-      const maxCharsPerLine = 15;
+      let current = '';
+      const maxChars = prizes.length > 12 ? 12 : 15;
 
       words.forEach(word => {
-        if ((currentLine + word).length > maxCharsPerLine && currentLine !== '') {
-          lines.push(currentLine.trim());
-          currentLine = word + ' ';
+        if ((current + word).length > maxChars && current !== '') {
+          lines.push(current.trim());
+          current = word + ' ';
         } else {
-          currentLine += word + ' ';
+          current += word + ' ';
         }
       });
-      lines.push(currentLine.trim());
+      lines.push(current.trim());
 
-      // Font sizes
-      const fontSize = lines.length > 2 ? 11 : 13;
+      const fontSize = prizes.length > 12 ? 10 : 12;
       ctx.font = `bold ${fontSize}px "Be Vietnam Pro", sans-serif`;
-
-      const lineHeight = fontSize + 4;
+      const lineHeight = fontSize + 3;
       const totalHeight = lines.length * lineHeight;
-      
-      lines.forEach((line, index) => {
-        const yOffset = (index * lineHeight) - (totalHeight / 2) + (lineHeight / 2);
-        ctx.fillText(line, radius - 15, yOffset);
+
+      lines.forEach((line, idx) => {
+        const yOffset = idx * lineHeight - totalHeight / 2 + lineHeight / 2;
+        ctx.fillText(line, radius - 12, yOffset);
       });
-      
+
       ctx.restore();
     });
 
-    // Outer thick border
+    // Outer ring
     ctx.beginPath();
-    ctx.arc(center, center, radius + 5, 0, 2 * Math.PI);
+    ctx.arc(center, center, radius + 4, 0, 2 * Math.PI);
     ctx.strokeStyle = '#d94343';
-    ctx.lineWidth = 12;
+    ctx.lineWidth = 10;
     ctx.stroke();
 
-    // Decorative dots
-    const dotCount = 24;
-    for(let j=0; j < dotCount; j++) {
+    // Decorative dots on ring
+    const dotCount = prizes.length * 2;
+    for (let j = 0; j < dotCount; j++) {
       ctx.save();
       ctx.translate(center, center);
-      ctx.rotate((j * (2*Math.PI/dotCount)) + rotation);
+      ctx.rotate((j * (2 * Math.PI)) / dotCount + rotation);
       ctx.beginPath();
-      ctx.arc(radius + 5, 0, 3, 0, 2*Math.PI);
+      ctx.arc(radius + 4, 0, 2.5, 0, 2 * Math.PI);
       ctx.fillStyle = '#fff';
       ctx.fill();
       ctx.restore();
     }
 
-    // Center button
+    // Center circle
     ctx.beginPath();
     ctx.arc(center, center, CENTER_RADIUS, 0, 2 * Math.PI);
     ctx.fillStyle = '#ffffff';
-    ctx.shadowBlur = 8;
-    ctx.shadowColor = 'rgba(0,0,0,0.3)';
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = 'rgba(0,0,0,0.25)';
     ctx.fill();
     ctx.shadowBlur = 0;
     ctx.strokeStyle = '#d94343';
@@ -117,21 +122,26 @@ const Wheel: React.FC<WheelProps> = ({ prizes, isSpinning, onFinished, targetPri
     ctx.stroke();
 
     ctx.fillStyle = '#d94343';
-    ctx.font = '900 18px "Be Vietnam Pro"';
+    ctx.font = '900 15px "Be Vietnam Pro"';
     ctx.textAlign = 'center';
-    ctx.fillText('QUAY', center, center + 6);
+    ctx.fillText('QUAY', center, center + 5);
   };
 
   const startSpinAnimation = (targetId: number) => {
     const prizeIndex = prizes.findIndex(p => p.id === targetId);
+    if (prizeIndex < 0) return;
+
     const sliceAngle = (2 * Math.PI) / prizes.length;
-    const targetAngle = - (prizeIndex + 0.5) * sliceAngle;
-    
+    const targetAngle = -(prizeIndex + 0.5) * sliceAngle;
     const startRotation = rotationRef.current;
-    const minRounds = 10; 
-    const finalRotation = startRotation + (Math.PI * 2 * minRounds) + (targetAngle - (startRotation % (Math.PI * 2)) + Math.PI * 4) % (Math.PI * 2);
+    const minRounds = 10;
+    const finalRotation =
+      startRotation +
+      Math.PI * 2 * minRounds +
+      ((targetAngle - (startRotation % (Math.PI * 2)) + Math.PI * 4) % (Math.PI * 2));
+
     const startTime = performance.now();
-    const duration = 5000; 
+    const duration = 5000;
 
     const animate = (now: number) => {
       const elapsed = now - startTime;
@@ -148,54 +158,38 @@ const Wheel: React.FC<WheelProps> = ({ prizes, isSpinning, onFinished, targetPri
     requestRef.current = requestAnimationFrame(animate);
   };
 
-  const handleCanvasClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
+  const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!onSpinClick || !canSpin || isSpinning) return;
-
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     const rect = canvas.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
-    
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
-    const scaledX = x * scaleX;
-    const scaledY = y * scaleY;
+    const sx = (e.clientX - rect.left) * scaleX;
+    const sy = (e.clientY - rect.top) * scaleY;
+    const cx = canvas.width / 2;
+    const cy = canvas.height / 2;
 
-    const centerX = canvas.width / 2;
-    const centerY = canvas.height / 2;
-    
-    const distance = Math.sqrt(Math.pow(scaledX - centerX, 2) + Math.pow(scaledY - centerY, 2));
-    
-    if (distance <= CENTER_RADIUS) {
+    if (Math.hypot(sx - cx, sy - cy) <= CENTER_RADIUS) {
       onSpinClick();
     }
   };
 
-  const handleMouseMove = (event: React.MouseEvent<HTMLCanvasElement>) => {
+  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-
     const rect = canvas.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
-    
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
-    const scaledX = x * scaleX;
-    const scaledY = y * scaleY;
-
-    const centerX = canvas.width / 2;
-    const centerY = canvas.height / 2;
-    
-    const distance = Math.sqrt(Math.pow(scaledX - centerX, 2) + Math.pow(scaledY - centerY, 2));
-    
-    if (distance <= CENTER_RADIUS && canSpin && !isSpinning) {
-      canvas.style.cursor = 'pointer';
-    } else {
-      canvas.style.cursor = 'default';
-    }
+    const sx = (e.clientX - rect.left) * scaleX;
+    const sy = (e.clientY - rect.top) * scaleY;
+    const cx = canvas.width / 2;
+    const cy = canvas.height / 2;
+    canvas.style.cursor =
+      Math.hypot(sx - cx, sy - cy) <= CENTER_RADIUS && canSpin && !isSpinning
+        ? 'pointer'
+        : 'default';
   };
 
   useEffect(() => {
@@ -210,28 +204,28 @@ const Wheel: React.FC<WheelProps> = ({ prizes, isSpinning, onFinished, targetPri
       clearTimeout(timer);
       if (requestRef.current) cancelAnimationFrame(requestRef.current);
     };
-  }, []);
+  }, [prizes]);
 
   return (
     <div className="relative inline-block select-none">
-      <canvas 
-        ref={canvasRef} 
-        width={WHEEL_SIZE} 
-        height={WHEEL_SIZE} 
+      <canvas
+        ref={canvasRef}
+        width={WHEEL_SIZE}
+        height={WHEEL_SIZE}
         onClick={handleCanvasClick}
         onMouseMove={handleMouseMove}
         className="max-w-full h-auto drop-shadow-2xl transition-opacity duration-300"
-        style={{ opacity: canSpin || isSpinning ? 1 : 0.8 }}
+        style={{ opacity: canSpin || isSpinning ? 1 : 0.75 }}
       />
-      {/* Pointer arrow on the RIGHT */}
-      <div 
-        className={`absolute right-0 top-1/2 -translate-y-1/2 translate-x-2 z-20 transition-transform ${isSpinning ? 'animate-tick' : ''}`}
-        style={{ width: '40px', height: '30px' }}
+      {/* Pointer arrow on the right */}
+      <div
+        className={`absolute right-0 top-1/2 -translate-y-1/2 translate-x-2 z-20 ${isSpinning ? 'animate-bounce' : ''}`}
+        style={{ width: 40, height: 28 }}
       >
-        <div 
-          className="w-full h-full bg-red-600 shadow-lg border-2 border-white" 
+        <div
+          className="w-full h-full bg-red-600 shadow-lg border-2 border-white"
           style={{ clipPath: 'polygon(0 50%, 100% 0, 100% 100%)' }}
-        ></div>
+        />
       </div>
     </div>
   );

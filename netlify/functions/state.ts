@@ -21,7 +21,7 @@ export const handler: Handler = async (event) => {
 
   const { data: spins, error: sErr } = await supabase
     .from("spins")
-    .select("spin_index, prize_id, prizes(name,image)")
+    .select("spin_index, prize_id, prizes(name,condition)")
     .eq("phone", phone)
     .order("spin_index", { ascending: true });
 
@@ -37,7 +37,7 @@ export const handler: Handler = async (event) => {
       spins: (spins ?? []).map((x: any) => ({
         prizeId: x.prize_id,
         prizeName: x.prizes?.name ?? "",
-        imagePath: x.prizes?.image ?? null,
+        condition: x.prizes?.condition ?? "",
       })),
     },
   });

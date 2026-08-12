@@ -17,6 +17,7 @@ export const handler: Handler = async (event) => {
   if (!phone) return bad("Thiếu SĐT");
   if (!selectedPrizeId) return bad("Thiếu phần quà chọn");
 
+  // Check participant exists and hasn't claimed
   const { data: p, error: pErr } = await supabase
     .from("participants")
     .select("phone,is_claimed")
@@ -27,6 +28,7 @@ export const handler: Handler = async (event) => {
   if (!p) return bad("SĐT chưa tham gia", 404);
   if (p.is_claimed) return bad("Số điện thoại này đã nhận thưởng", 409);
 
+  // Confirm selected prize is one of their spun prizes
   const { data: spins, error: sErr } = await supabase
     .from("spins")
     .select("prize_id")
@@ -35,15 +37,10 @@ export const handler: Handler = async (event) => {
   if (sErr) return json(500, { ok: false, message: sErr.message });
 
   const prizeIds = (spins || []).map((x: any) => x.prize_id);
-  if (!prizeIds.includes(selectedPrizeId)) return bad("Phần quà chọn không hợp lệ", 400);
+  if (!prizeIds.includes(selectedPrizeId))
+    return bad("Phần quà chọn không hợp lệ", 400);
 
-  // return reserved stock for unselected prizes
-  const unselected = prizeIds.filter((id: number) => id !== selectedPrizeId);
-  for (const id of unselected) {
-    const { error } = await supabase.rpc("increment_prize", { p_id: id });
-    if (error) return json(500, { ok: false, message: error.message });
-  }
-
+  // Mark as claimed
   const { error: updErr } = await supabase
     .from("participants")
     .update({

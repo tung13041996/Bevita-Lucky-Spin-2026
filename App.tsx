@@ -1,11 +1,10 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { AppState, SpinResult, Prize, ClaimRecord } from './types';
-import { ASSETS, INITIAL_PRIZES, FACEBOOK_POST_URL } from './constants';
+import { ASSETS, INITIAL_PRIZES } from './constants';
 import { api } from './services/api';
 import Wheel from './components/Wheel';
 import PrizeModal from './components/PrizeModal';
-import { User, Phone, Gift, ArrowRight, ExternalLink, Loader2 } from 'lucide-react';
+import { User, Phone, Gift, ArrowRight, Loader2, Camera } from 'lucide-react';
 
 const App: React.FC = () => {
   const [state, setState] = useState<AppState>({
@@ -30,16 +29,16 @@ const App: React.FC = () => {
     (async () => {
       try {
         const serverPrizes = await api.getPrizes();
-        setPrizes(serverPrizes);
-      } catch (e: any) {
-        setState(prev => ({ ...prev, error: e?.message || "Không tải được danh sách quà" }));
+        if (serverPrizes && serverPrizes.length > 0) setPrizes(serverPrizes);
+      } catch {
+        // fallback to INITIAL_PRIZES already set
       }
     })();
     spinAudio.current = new Audio(ASSETS.sounds.spin);
     winAudio.current = new Audio(ASSETS.sounds.fireworks);
   }, []);
 
-  // Effect to check and restore state when phone changes
+  // Restore state when a valid phone is entered
   useEffect(() => {
     const phoneRegex = /(84|0[3|5|7|8|9])+([0-9]{8})\b/;
     if (!phoneRegex.test(state.phone)) return;
@@ -50,75 +49,74 @@ const App: React.FC = () => {
         const existing = await api.getParticipant(state.phone);
         if (!existing || cancelled) return;
 
-        const selectedIndex = existing.selectedPrizeId
-          ? existing.spins.findIndex(s => s.prizeId === existing.selectedPrizeId)
-          : null;
+        const selectedIndex =
+          existing.selectedPrizeId != null
+            ? existing.spins.findIndex(s => s.prizeId === existing.selectedPrizeId)
+            : null;
 
         setState(prev => ({
           ...prev,
           name: existing.name || prev.name,
           spins: existing.spins,
           isClaimed: existing.isClaimed,
-          selectedPrizeIndex: existing.isClaimed ? (selectedIndex >= 0 ? selectedIndex : prev.selectedPrizeIndex) : prev.selectedPrizeIndex,
-          error: existing.isClaimed ? "Số điện thoại này đã nhận thưởng" : null
+          selectedPrizeIndex:
+            existing.isClaimed && selectedIndex != null && selectedIndex >= 0
+              ? selectedIndex
+              : prev.selectedPrizeIndex,
+          error: existing.isClaimed ? "Số điện thoại này đã nhận thưởng rồi" : null,
         }));
       } catch (e: any) {
-        if (!cancelled) setState(prev => ({ ...prev, error: e?.message || "Lỗi kiểm tra SĐT" }));
+        if (!cancelled)
+          setState(prev => ({ ...prev, error: e?.message || "Lỗi kiểm tra SĐT" }));
       }
     })();
 
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [state.phone]);
 
   const handleSpin = async () => {
-    if (!state.name || !state.phone) return;
+    if (!state.name.trim() || !state.phone.trim()) return;
     setState(prev => ({ ...prev, error: null }));
 
     try {
       const result = await api.spin(state.name, state.phone);
       setState(prev => ({ ...prev, isSpinning: true, lastSpunPrize: result }));
-      spinAudio.current?.play();
-
-      // refresh shared inventory right after spin (reserved)
-      setPrizes(await api.getPrizes());
+      spinAudio.current?.play().catch(() => {});
     } catch (err: any) {
-      setState(prev => ({ ...prev, error: err?.message || 'Lỗi quay' }));
+      setState(prev => ({ ...prev, error: err?.message || 'Lỗi quay thưởng' }));
     }
   };
 
   const onWheelFinished = useCallback(() => {
-    setState(prev => ({ 
-      ...prev, 
-      isSpinning: false, 
+    setState(prev => ({
+      ...prev,
+      isSpinning: false,
       showModal: true,
-      spins: [...prev.spins, prev.lastSpunPrize!]
+      spins: [...prev.spins, prev.lastSpunPrize!],
     }));
     spinAudio.current?.pause();
     if (spinAudio.current) spinAudio.current.currentTime = 0;
-    winAudio.current?.play();
+    winAudio.current?.play().catch(() => {});
   }, []);
 
   const handleClaim = async () => {
     if (state.selectedPrizeIndex === null || isSubmitting) return;
-    
     setIsSubmitting(true);
+
     const selectedPrize = state.spins[state.selectedPrizeIndex];
     const record: ClaimRecord = {
       name: state.name,
       phone: state.phone,
       selectedPrizeId: selectedPrize.prizeId,
       spin1PrizeId: state.spins[0].prizeId,
-      spin2PrizeId: state.spins[1]?.prizeId || null,
-      spin3PrizeId: state.spins[2]?.prizeId || null,
-      timestamp: new Date().toISOString()
+      spin2PrizeId: state.spins[1]?.prizeId ?? null,
+      spin3PrizeId: state.spins[2]?.prizeId ?? null,
+      timestamp: new Date().toISOString(),
     };
 
     try {
       await api.claim(record);
       setState(prev => ({ ...prev, isClaimed: true, showFinalPopup: true }));
-      setPrizes(await api.getPrizes());
     } catch (err: any) {
       setState(prev => ({ ...prev, error: err.message }));
     } finally {
@@ -127,164 +125,258 @@ const App: React.FC = () => {
   };
 
   const isFormValid = state.name.trim() !== '' && state.phone.trim() !== '';
-  const canSpin = isFormValid && state.spins.length < 3 && !state.isSpinning && !state.isClaimed;
+  const canSpin =
+    isFormValid && state.spins.length < 3 && !state.isSpinning && !state.isClaimed;
   const isLocked = state.spins.length > 0 || state.isClaimed;
 
-  return (
-    <div className="min-h-screen lg:h-screen overflow-x-hidden relative bg-[#f0f7f4] flex flex-col items-center py-4 px-4">
-      <div className="blossom-decoration top-0 left-0 p-4 opacity-40 text-4xl">🌸</div>
-      <div className="blossom-decoration top-10 right-10 p-4 opacity-40 text-4xl">🌸</div>
-      <div className="blossom-decoration bottom-10 right-5 p-4 opacity-40 text-4xl">🌸</div>
+  const spinsLeft = 3 - state.spins.length;
 
-      <header className="max-w-6xl w-full flex flex-col items-center mb-6 text-center px-4">
-        <h1 className="text-2xl md:text-4xl lg:text-5xl font-extrabold text-[#d94343] mb-3 uppercase drop-shadow-sm tracking-tight leading-tight">
-          🧧 TẾT RỰC RỠ - QUAY LÀ TRÚNG 🧧
+  const selectedPrize =
+    state.selectedPrizeIndex !== null ? state.spins[state.selectedPrizeIndex] : null;
+
+  return (
+    <div className="min-h-screen overflow-x-hidden relative bg-[#f0f7f4] flex flex-col items-center py-6 px-4">
+      {/* Decorative blossoms */}
+      <div className="fixed top-4 left-4 opacity-30 text-4xl pointer-events-none">🌸</div>
+      <div className="fixed top-10 right-10 opacity-30 text-4xl pointer-events-none">🌸</div>
+      <div className="fixed bottom-10 left-6 opacity-30 text-4xl pointer-events-none">🧧</div>
+      <div className="fixed bottom-10 right-6 opacity-30 text-4xl pointer-events-none">🧧</div>
+
+      {/* Header */}
+      <header className="max-w-5xl w-full text-center mb-8 px-4">
+        <div className="inline-block bg-[#d94343] text-white text-xs font-black px-4 py-1 rounded-full mb-3 uppercase tracking-widest">
+          🇻🇳 Chào mừng Đại lễ 2/9
+        </div>
+        <h1 className="text-3xl md:text-5xl font-extrabold text-[#d94343] mb-2 uppercase leading-tight drop-shadow-sm">
+          Vòng Quay Chào Mừng Đại Lễ
         </h1>
-        <h2 className="text-base md:text-xl font-bold text-[#008A92] mb-3 uppercase">
-          🌸 Khai xuân rộn ràng – Nhận lộc ngập tràn cùng BEVITA
+        <h2 className="text-sm md:text-base font-bold text-[#008A92] mb-4 uppercase tracking-wide">
+          Mai NTP & Bevita — 100% Trúng Quà 🎁
         </h2>
-        <div className="bg-white/80 backdrop-blur-sm p-4 rounded-2xl border border-teal-100 shadow-sm max-w-3xl">
-          <p className="text-gray-700 text-sm md:text-base">
-            Chào đón 2026 rực rỡ! <strong>100% CÓ QUÀ</strong> khi tham gia vòng quay may mắn! 🎁
+        <div className="bg-white/80 backdrop-blur-sm px-6 py-3 rounded-2xl border border-teal-100 shadow-sm inline-block max-w-xl">
+          <p className="text-gray-600 text-sm">
+            Nhập SĐT → Quay 3 lần → Chọn 1 phần quà yêu thích → Chụp màn hình gửi về cho Mai/Bevita
           </p>
         </div>
       </header>
 
-      <main className="max-w-7xl w-full grid grid-cols-1 lg:grid-cols-[450px_1fr] gap-8 items-start flex-1">
+      {/* Main layout */}
+      <main className="max-w-6xl w-full grid grid-cols-1 lg:grid-cols-[420px_1fr] gap-8 items-start">
+
+        {/* Left panel */}
         <section className="bg-white p-6 md:p-8 rounded-[2rem] shadow-xl border border-teal-50">
-          <div className="space-y-6">
-            <h3 className="text-lg font-bold text-[#008A92] border-b-2 pb-2 border-teal-50 uppercase">Thông tin cá nhân</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="flex items-center gap-1 text-xs font-bold text-gray-500 uppercase mb-2">
-                  <User size={16} className="text-[#d94343]" /> Tên khách hàng
-                </label>
-                <input 
-                  type="text"
-                  placeholder="Nhập họ và tên"
-                  value={state.name}
-                  onChange={e => setState(p => ({ ...p, name: e.target.value }))}
-                  className="w-full px-5 py-3 rounded-xl border-2 border-gray-100 focus:border-[#00B2BD] outline-none transition-all disabled:bg-gray-50 disabled:text-gray-500"
-                  disabled={isLocked}
-                />
-              </div>
-              <div>
-                <label className="flex items-center gap-1 text-xs font-bold text-gray-500 uppercase mb-2">
-                  <Phone size={16} className="text-[#d94343]" /> Số điện thoại
-                </label>
-                <input 
-                  type="tel"
-                  placeholder="Nhập số điện thoại"
-                  value={state.phone}
-                  onChange={e => setState(p => ({ ...p, phone: e.target.value }))}
-                  className="w-full px-5 py-3 rounded-xl border-2 border-gray-100 focus:border-[#00B2BD] outline-none transition-all disabled:bg-gray-50 disabled:text-gray-500"
-                  disabled={state.isClaimed}
-                />
-                <p className="text-[#008A92] text-xs font-bold mt-2 italic">* Mỗi SĐT được tối đa 3 lần quay</p>
-              </div>
+          <h3 className="text-sm font-black text-[#008A92] border-b-2 pb-3 mb-5 border-teal-50 uppercase tracking-wider">
+            Thông tin của bạn
+          </h3>
+
+          <div className="space-y-4">
+            <div>
+              <label className="flex items-center gap-1 text-xs font-bold text-gray-400 uppercase mb-2">
+                <User size={14} className="text-[#d94343]" /> Họ và tên
+              </label>
+              <input
+                type="text"
+                placeholder="Nhập họ và tên đầy đủ"
+                value={state.name}
+                onChange={e => setState(p => ({ ...p, name: e.target.value }))}
+                disabled={isLocked}
+                className="w-full px-4 py-3 rounded-xl border-2 border-gray-100 focus:border-[#00B2BD] outline-none transition-all disabled:bg-gray-50 disabled:text-gray-400 text-sm"
+              />
             </div>
-
-            {state.error && <div className="p-3 bg-red-50 text-red-600 rounded-xl text-xs font-bold border border-red-100">{state.error}</div>}
-
-            {state.spins.length > 0 && (
-              <div className="mt-6 pt-6 border-t-2 border-teal-50">
-                <h3 className="font-bold text-[#008A92] mb-4 flex items-center gap-2 text-sm uppercase">
-                  <Gift size={18} className="text-[#d94343]" /> {state.isClaimed ? "Phần quà đã nhận:" : "Chọn quà bạn muốn nhận:"}
-                </h3>
-                <div className="space-y-3">
-                  {state.spins.map((prize, idx) => (
-                    <label 
-                      key={idx} 
-                      className={`flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all ${state.selectedPrizeIndex === idx ? 'border-[#d94343] bg-red-50' : 'border-gray-100 bg-gray-50'}`}
-                    >
-                      <input 
-                        type="radio" 
-                        name="prize" 
-                        checked={state.selectedPrizeIndex === idx}
-                        onChange={() => setState(p => ({ ...p, selectedPrizeIndex: idx }))}
-                        disabled={state.isClaimed || isSubmitting}
-                        className="w-5 h-5 accent-[#d94343]"
-                      />
-                      <span className="font-bold text-gray-800 text-sm">{prize.prizeName.split(' — ')[0]}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            )}
+            <div>
+              <label className="flex items-center gap-1 text-xs font-bold text-gray-400 uppercase mb-2">
+                <Phone size={14} className="text-[#d94343]" /> Số điện thoại
+              </label>
+              <input
+                type="tel"
+                placeholder="Nhập số điện thoại"
+                value={state.phone}
+                onChange={e => setState(p => ({ ...p, phone: e.target.value }))}
+                disabled={state.isClaimed}
+                className="w-full px-4 py-3 rounded-xl border-2 border-gray-100 focus:border-[#00B2BD] outline-none transition-all disabled:bg-gray-50 disabled:text-gray-400 text-sm"
+              />
+              <p className="text-[#008A92] text-xs font-semibold mt-2 italic">
+                * Mỗi SĐT được tối đa 3 lần quay
+              </p>
+            </div>
           </div>
 
-          <div className="mt-8">
-            {state.spins.length > 0 && !state.isClaimed && (
+          {/* Spin counter */}
+          {state.spins.length > 0 && !state.isClaimed && (
+            <div className="mt-5 flex items-center gap-2">
+              {[1, 2, 3].map(n => (
+                <div
+                  key={n}
+                  className={`flex-1 h-2 rounded-full transition-all ${
+                    n <= state.spins.length ? 'bg-[#d94343]' : 'bg-gray-100'
+                  }`}
+                />
+              ))}
+              <span className="text-xs font-bold text-gray-400 ml-1 whitespace-nowrap">
+                {spinsLeft > 0 ? `còn ${spinsLeft} lượt` : 'đã quay xong'}
+              </span>
+            </div>
+          )}
+
+          {/* Error */}
+          {state.error && (
+            <div className="mt-5 p-3 bg-red-50 text-red-600 rounded-xl text-xs font-bold border border-red-100">
+              {state.error}
+            </div>
+          )}
+
+          {/* Prize selection */}
+          {state.spins.length > 0 && (
+            <div className="mt-6 pt-5 border-t-2 border-teal-50">
+              <h3 className="font-black text-[#008A92] mb-3 flex items-center gap-2 text-xs uppercase tracking-wider">
+                <Gift size={16} className="text-[#d94343]" />
+                {state.isClaimed ? 'Phần quà đã chọn:' : 'Chọn 1 phần quà muốn nhận:'}
+              </h3>
+              <div className="space-y-2">
+                {state.spins.map((prize, idx) => (
+                  <label
+                    key={idx}
+                    className={`flex items-start gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                      state.selectedPrizeIndex === idx
+                        ? 'border-[#d94343] bg-red-50'
+                        : 'border-gray-100 bg-gray-50'
+                    } ${state.isClaimed ? 'cursor-default' : ''}`}
+                  >
+                    <input
+                      type="radio"
+                      name="prize"
+                      checked={state.selectedPrizeIndex === idx}
+                      onChange={() =>
+                        !state.isClaimed && setState(p => ({ ...p, selectedPrizeIndex: idx }))
+                      }
+                      disabled={state.isClaimed || isSubmitting}
+                      className="mt-0.5 w-4 h-4 accent-[#d94343] shrink-0"
+                    />
+                    <div>
+                      <p className="font-bold text-gray-800 text-sm">{prize.prizeName}</p>
+                      {prize.condition && (
+                        <p className="text-xs text-gray-400 mt-0.5">{prize.condition}</p>
+                      )}
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* CTA */}
+          <div className="mt-6">
+            {state.spins.length > 0 && !state.isClaimed && spinsLeft === 0 && (
               <button
                 onClick={handleClaim}
                 disabled={state.selectedPrizeIndex === null || isSubmitting}
-                className="w-full py-4 rounded-xl font-black text-lg bg-[#d94343] hover:bg-[#b83232] text-white shadow-lg flex items-center justify-center gap-3 disabled:bg-gray-200"
+                className="w-full py-4 rounded-xl font-black text-base bg-[#d94343] hover:bg-[#b83232] text-white shadow-lg flex items-center justify-center gap-2 disabled:bg-gray-200 disabled:text-gray-400 transition-all"
               >
-                {isSubmitting ? <><Loader2 className="animate-spin" /> ĐANG XỬ LÝ...</> : <>NHẬN QUÀ <ArrowRight size={22} /></>}
+                {isSubmitting ? (
+                  <><Loader2 className="animate-spin" size={18} /> ĐANG XỬ LÝ...</>
+                ) : (
+                  <>XÁC NHẬN NHẬN QUÀ <ArrowRight size={18} /></>
+                )}
               </button>
             )}
+
             {state.isClaimed && (
-              <div className="space-y-4">
-                <div className="p-4 bg-teal-50 text-teal-800 rounded-xl border-2 border-teal-100 text-center font-bold">
-                  Đã ghi nhận phần quà! 🎉
+              <div className="space-y-3">
+                <div className="p-4 bg-teal-50 text-teal-800 rounded-xl border-2 border-teal-100 text-center font-bold text-sm">
+                  ✅ Đã ghi nhận thành công!
                 </div>
-                <button 
+                <button
                   onClick={() => setState(p => ({ ...p, showFinalPopup: true }))}
-                  className="w-full py-3 bg-gray-100 text-gray-600 font-bold rounded-xl hover:bg-gray-200 transition-colors"
+                  className="w-full py-3 bg-gray-100 text-gray-600 font-bold rounded-xl hover:bg-gray-200 transition-colors text-sm"
                 >
-                  XEM LẠI XÁC NHẬN
+                  Xem lại xác nhận
                 </button>
               </div>
             )}
           </div>
         </section>
 
-        <section className="flex flex-col items-center justify-center p-4 bg-white/30 rounded-[3rem] backdrop-blur-md border border-white/60">
-          <div className="relative transform scale-[0.7] md:scale-90 lg:scale-100 origin-center">
-            <Wheel 
-              prizes={prizes} 
-              isSpinning={state.isSpinning} 
+        {/* Wheel section */}
+        <section className="flex flex-col items-center justify-center p-6 bg-white/40 rounded-[2.5rem] backdrop-blur-md border border-white/60 min-h-[420px]">
+          <div className="relative transform scale-[0.7] md:scale-[0.85] lg:scale-100 origin-center">
+            <Wheel
+              prizes={prizes}
+              isSpinning={state.isSpinning}
               onFinished={onWheelFinished}
-              targetPrizeId={state.lastSpunPrize?.prizeId || null}
+              targetPrizeId={state.lastSpunPrize?.prizeId ?? null}
               onSpinClick={handleSpin}
               canSpin={canSpin}
             />
           </div>
+
+          {/* Spin guidance */}
+          {!isFormValid && (
+            <p className="mt-4 text-sm text-gray-400 font-medium text-center">
+              Nhập tên và SĐT để bắt đầu quay
+            </p>
+          )}
+          {isFormValid && canSpin && (
+            <p className="mt-4 text-sm text-[#008A92] font-bold text-center animate-pulse">
+              Nhấn vào nút QUAY ở giữa bánh xe!
+            </p>
+          )}
+          {isFormValid && !canSpin && !state.isClaimed && spinsLeft === 0 && (
+            <p className="mt-4 text-sm text-[#d94343] font-bold text-center">
+              Đã quay xong! Hãy chọn phần quà bên trái 👈
+            </p>
+          )}
         </section>
       </main>
 
-      <PrizeModal 
-        prize={state.showModal ? state.lastSpunPrize : null} 
+      {/* Prize modal after each spin */}
+      <PrizeModal
+        prize={state.showModal ? state.lastSpunPrize : null}
         userName={state.name}
-        onClose={() => setState(p => ({ ...p, showModal: false }))} 
+        onClose={() => setState(p => ({ ...p, showModal: false }))}
       />
 
-      {state.showFinalPopup && (
+      {/* Final confirmation popup */}
+      {state.showFinalPopup && selectedPrize && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-teal-900/80 backdrop-blur-xl">
-          <div className="bg-white rounded-[3rem] p-10 max-w-2xl w-full shadow-2xl text-center border-[12px] border-red-50">
-             <h3 className="text-4xl font-black text-red-600 mb-2 uppercase">XÁC NHẬN!</h3>
-             <p className="text-gray-500 mb-8">Bevita đã ghi nhận phần quà của bạn</p>
-             <div className="bg-red-50 p-8 rounded-[2rem] mb-8 border-4 border-dashed border-red-200">
-               <div className="text-left bg-white p-6 rounded-2xl shadow-xl">
-                 <p className="font-bold border-b pb-2">Họ tên: <span className="text-red-600 uppercase">{state.name}</span></p>
-                 <p className="font-bold border-b py-2">SĐT: <span className="text-red-600">{state.phone}</span></p>
-                 <div className="bg-[#d94343] mt-4 p-4 rounded-xl text-white text-center">
-                   <p className="text-xs opacity-80 uppercase mb-1">Quà tặng</p>
-                   <p className="font-black text-xl">
-                    {state.selectedPrizeIndex !== null ? state.spins[state.selectedPrizeIndex]?.prizeName.split(' — ')[0] : "Chưa chọn quà"}
-                   </p>
-                 </div>
-               </div>
-             </div>
-             <div className="space-y-4">
-               <p className="text-sm text-yellow-900 font-bold bg-yellow-100 p-4 rounded-xl">
-                 "Vui lòng chụp lại màn hình và gửi vào bài viết Facebook được gim ở đầu tiên để nhận thưởng!"
-               </p>
-               <a href={FACEBOOK_POST_URL} target="_blank" className="inline-flex items-center gap-3 bg-blue-600 text-white px-10 py-5 rounded-[1.5rem] font-black w-full justify-center">
-                 GỬI LÊN FACEBOOK <ExternalLink />
-               </a>
-               <button onClick={() => setState(p => ({ ...p, showFinalPopup: false }))} className="block w-full text-gray-400 font-bold py-2">ĐÓNG</button>
-             </div>
+          <div className="bg-white rounded-[2.5rem] p-8 max-w-lg w-full shadow-2xl text-center border-8 border-red-50">
+            <div className="text-6xl mb-4">🎉</div>
+            <h3 className="text-3xl font-black text-[#d94343] mb-1 uppercase">Xác nhận!</h3>
+            <p className="text-gray-400 text-sm mb-6">Bevita đã ghi nhận phần quà của bạn</p>
+
+            {/* Info card */}
+            <div className="bg-gray-50 rounded-2xl p-5 mb-6 text-left space-y-2 border border-gray-100">
+              <p className="text-sm font-bold text-gray-600">
+                Họ tên: <span className="text-gray-900 uppercase">{state.name}</span>
+              </p>
+              <p className="text-sm font-bold text-gray-600">
+                SĐT: <span className="text-gray-900">{state.phone}</span>
+              </p>
+              <div className="mt-3 bg-[#d94343] p-4 rounded-xl text-white text-center">
+                <p className="text-xs opacity-75 uppercase mb-1">Phần quà</p>
+                <p className="font-black text-xl">{selectedPrize.prizeName}</p>
+              </div>
+              {selectedPrize.condition && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mt-2">
+                  <p className="text-xs font-bold text-amber-700 uppercase mb-1">Điều kiện</p>
+                  <p className="text-xs text-amber-900">{selectedPrize.condition}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Instructions */}
+            <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-6 flex items-start gap-3">
+              <Camera size={20} className="text-blue-500 shrink-0 mt-0.5" />
+              <p className="text-xs text-blue-700 font-medium text-left">
+                Chụp màn hình này và gửi lại qua tin nhắn cho Mai / Bevita để được xác nhận nhận quà.
+              </p>
+            </div>
+
+            <button
+              onClick={() => setState(p => ({ ...p, showFinalPopup: false }))}
+              className="w-full py-3 bg-gray-100 text-gray-600 font-bold rounded-xl hover:bg-gray-200 transition-colors"
+            >
+              Đóng
+            </button>
           </div>
         </div>
       )}
