@@ -61,13 +61,20 @@ const App: React.FC = () => {
 
   const handleSpin = async () => {
     if (!state.name.trim() || !state.phone.trim()) return;
-    setState(prev => ({ ...prev, error: null }));
+
+    // Bắt đầu quay NGAY LẬP TỨC, chưa có target
+    setState(prev => ({ ...prev, error: null, isSpinning: true, lastSpunPrize: null }));
+    spinAudio.current?.play().catch(() => {});
+
     try {
+      // Gọi API song song — khi có kết quả, Wheel sẽ giảm tốc vào ô đúng
       const result = await api.spin(state.name, state.phone);
-      setState(prev => ({ ...prev, isSpinning: true, lastSpunPrize: result }));
-      spinAudio.current?.play().catch(() => {});
+      setState(prev => ({ ...prev, lastSpunPrize: result }));
     } catch (err: any) {
-      setState(prev => ({ ...prev, error: err?.message || 'Lỗi quay thưởng' }));
+      // Nếu API lỗi, dừng quay
+      setState(prev => ({ ...prev, isSpinning: false, error: err?.message || 'Lỗi quay thưởng' }));
+      spinAudio.current?.pause();
+      if (spinAudio.current) spinAudio.current.currentTime = 0;
     }
   };
 
@@ -204,7 +211,7 @@ const App: React.FC = () => {
             <div className="mt-6 pt-5 border-t-2 border-teal-50">
               <h3 className="font-black text-[#008A92] mb-3 flex items-center gap-2 text-xs uppercase tracking-wider">
                 <Gift size={16} className="text-[#d94343]" />
-                {state.isClaimed ? '3 phần quà của bạn là:' : 'Chọn phần quà muốn nhận:'}
+                {state.isClaimed ? 'Phần quà đã chọn:' : 'Chọn phần quà muốn nhận:'}
               </h3>
               <div className="space-y-2">
                 {state.spins.map((prize) => {
@@ -301,7 +308,7 @@ const App: React.FC = () => {
               <p className="text-sm font-bold text-gray-600">SĐT: <span className="text-gray-900">{state.phone}</span></p>
 
               <div className="mt-3 space-y-2">
-                <p className="text-xs font-bold text-gray-400 uppercase">Phần quà của bạn là:</p>
+                <p className="text-xs font-bold text-gray-400 uppercase">Các phần quà của bạn là:</p>
                 {selectedPrizes.map(prize => (
                   <div key={prize.prizeId} className="bg-[#d94343] p-3 rounded-xl text-white">
                     <p className="font-black text-lg">{prize.prizeName}</p>
