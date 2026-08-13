@@ -11,19 +11,19 @@ export const handler: Handler = async (event) => {
   if (!phoneRegex.test(phone)) return bad("SĐT không hợp lệ");
 
   const { data: p, error: pErr } = await supabase
-    .from("participants")
-    .select("phone,name,is_claimed,selected_prize_id")
-    .eq("phone", phone)
-    .maybeSingle();
+      .from("participants")
+      .select("phone,name,is_claimed,selected_prize_ids")
+      .eq("phone", phone)
+      .maybeSingle();
 
   if (pErr) return json(500, { ok: false, message: pErr.message });
   if (!p) return json(200, { ok: true, participant: null });
 
   const { data: spins, error: sErr } = await supabase
-    .from("spins")
-    .select("spin_index, prize_id, prizes(name,condition)")
-    .eq("phone", phone)
-    .order("spin_index", { ascending: true });
+      .from("spins")
+      .select("spin_index, prize_id, prizes(name,condition)")
+      .eq("phone", phone)
+      .order("spin_index", { ascending: true });
 
   if (sErr) return json(500, { ok: false, message: sErr.message });
 
@@ -33,7 +33,7 @@ export const handler: Handler = async (event) => {
       phone: p.phone,
       name: p.name,
       isClaimed: !!p.is_claimed,
-      selectedPrizeId: p.selected_prize_id ?? null,
+      selectedPrizeIds: p.selected_prize_ids ?? [],
       spins: (spins ?? []).map((x: any) => ({
         prizeId: x.prize_id,
         prizeName: x.prizes?.name ?? "",
