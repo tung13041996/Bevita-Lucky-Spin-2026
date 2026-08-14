@@ -33,20 +33,19 @@ export const api = {
     return data.prizes as Prize[];
   },
 
+  // Dùng để kiểm tra SĐT đã quay chưa
   async getParticipant(phone: string): Promise<ParticipantData | null> {
     const data = await getJSON(`${BASE}/state?phone=${encodeURIComponent(phone)}`);
     return data.participant as ParticipantData | null;
   },
 
-  async spin(name: string, phone: string): Promise<SpinResult> {
-    const data = await postJSON(`${BASE}/spin`, { name, phone });
-    return data.result as SpinResult;
-  },
-
+  // Gửi toàn bộ: spunPrizeIds + selectedPrizeIds + tên + SĐT một lần
   async claim(record: ClaimRecord): Promise<boolean> {
     await postJSON(`${BASE}/claim`, {
+      name: record.name,
       phone: record.phone,
-      selectedPrizeIds: record.selectedPrizeIds,  // array
+      spunPrizeIds: record.spunPrizeIds,
+      selectedPrizeIds: record.selectedPrizeIds,
     });
     return true;
   },

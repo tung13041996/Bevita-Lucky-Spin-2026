@@ -15,18 +15,17 @@ export interface SpinResult {
 export interface ClaimRecord {
   name: string;
   phone: string;
-  selectedPrizeIds: number[];   // đổi từ single → array
-  spin1PrizeId: number;
-  spin2PrizeId: number | null;
-  spin3PrizeId: number | null;
+  spunPrizeIds: number[];     // 3 prizes đã quay (client-side)
+  selectedPrizeIds: number[]; // prizes muốn nhận
   timestamp: string;
 }
 
 export interface AppState {
   name: string;
   phone: string;
+  phoneError: string | null;
   spins: SpinResult[];
-  selectedPrizeIds: number[];   // đổi từ single → array
+  selectedPrizeIds: number[];
   isClaimed: boolean;
   isSpinning: boolean;
   error: string | null;

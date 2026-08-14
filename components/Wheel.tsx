@@ -23,6 +23,8 @@ const Wheel: React.FC<WheelProps> = ({
   const freeSpinningRef = useRef(false);
   const deceleratingRef = useRef(false);
   const pendingTargetRef = useRef<number | null>(null);
+  const freeSpinStartRef = useRef(0);
+  const MIN_FREE_SPIN_MS = 1500;
 
   // Dùng ref để tránh stale closure trong animation loop
   const prizesRef = useRef(prizes);
@@ -149,15 +151,17 @@ const Wheel: React.FC<WheelProps> = ({
   const startFreeSpin = () => {
     if (requestRef.current) cancelAnimationFrame(requestRef.current);
     freeSpinningRef.current = true;
+    freeSpinStartRef.current = performance.now();
 
     const animate = () => {
       if (!freeSpinningRef.current) return;
       rotationRef.current += FREE_SPIN_VELOCITY;
       drawWheel(rotationRef.current, false);
 
-      // Khi API trả về kết quả → bắt đầu giảm tốc
+      // Chỉ giảm tốc sau khi đã quay đủ tối thiểu 1.5s
+      const elapsed = performance.now() - freeSpinStartRef.current;
       const target = pendingTargetRef.current;
-      if (target !== null) {
+      if (target !== null && elapsed >= MIN_FREE_SPIN_MS) {
         startDeceleration(target);
         return;
       }
