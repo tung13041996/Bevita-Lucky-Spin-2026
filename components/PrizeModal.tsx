@@ -19,7 +19,6 @@ const PrizeModal: React.FC<PrizeModalProps> = ({ prize, userName, onClose }) => 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
       <div className="relative bg-white rounded-[2.5rem] p-10 max-w-xl w-full shadow-2xl text-center overflow-hidden border-8 border-[#d94343]">
-        {/* Pulse background decoration */}
         <div className="absolute inset-0 pointer-events-none opacity-10">
           <div className="w-full h-full animate-pulse bg-[radial-gradient(circle,_#d94343_1px,_transparent_1px)] bg-[size:28px_28px]" />
         </div>
@@ -33,17 +32,15 @@ const PrizeModal: React.FC<PrizeModalProps> = ({ prize, userName, onClose }) => 
             <br />đã trúng
           </h2>
 
-          {/* Prize name */}
           <div className="bg-[#d94343] text-white px-8 py-5 rounded-2xl mb-6 w-full">
             <p className="font-black text-3xl md:text-4xl uppercase tracking-tight">
               {prize.prizeName}
             </p>
           </div>
 
-          {/* Condition */}
+          {/* Hiện điều kiện nhưng bỏ nhãn "Điều kiện áp dụng" */}
           {prize.condition && (
             <div className="bg-amber-50 border-2 border-amber-200 rounded-xl px-6 py-3 mb-8 w-full">
-              <p className="text-xs font-bold text-amber-700 uppercase mb-1">Điều kiện áp dụng</p>
               <p className="text-sm text-amber-900 font-medium">{prize.condition}</p>
             </div>
           )}
@@ -60,7 +57,6 @@ const PrizeModal: React.FC<PrizeModalProps> = ({ prize, userName, onClose }) => 
           </p>
         </div>
 
-        {/* Corner decorations */}
         <div className="absolute top-5 left-5 text-4xl opacity-50">🌸</div>
         <div className="absolute top-5 right-5 text-4xl opacity-50">🌸</div>
         <div className="absolute bottom-5 left-5 text-4xl opacity-50">🧧</div>
