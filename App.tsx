@@ -96,7 +96,7 @@ const App: React.FC = () => {
     const record: ClaimRecord = {
       name: state.name, phone: state.phone,
       spunPrizeIds: state.spins.map(s => s.prizeId),
-      selectedPrizeIds: state.selectedPrizeIds,
+      selectedPrizeIds: state.spins.map(s => s.prizeId), // tự động chọn hết
       timestamp: new Date().toISOString(),
     };
     try {
@@ -115,8 +115,8 @@ const App: React.FC = () => {
   const phoneValid = phoneRegex.test(state.phone);
   const nameValid = state.name.trim() !== '';
   const formValid = nameValid && phoneValid && !state.phoneError;
-  const isClaimable = allSpinsDone && formValid && state.selectedPrizeIds.length > 0 && !state.isClaimed;
-  const selectedPrizes = state.spins.filter(s => state.selectedPrizeIds.includes(s.prizeId));
+  const isClaimable = allSpinsDone && formValid && !state.isClaimed;
+  const selectedPrizes = state.spins;
 
   return (
     <div className="min-h-screen overflow-x-hidden relative bg-[#f0f7f4] flex flex-col items-center py-6 px-4">
@@ -196,28 +196,23 @@ const App: React.FC = () => {
           ) : (
             /* === SAU KHI QUAY XONG 3 LẦN === */
             <div>
-              {/* Chọn phần quà */}
+              {/* Kết quả quay — read-only list */}
               <h3 className="text-sm font-black text-[#008A92] border-b-2 pb-3 mb-5 border-teal-50 uppercase tracking-wider flex items-center gap-2">
                 <Gift size={16} className="text-[#d94343]" />
-                {state.isClaimed ? 'Phần quà đã chọn:' : 'Chọn phần quà muốn nhận:'}
+                Phần quà của bạn
               </h3>
               <div className="space-y-2 mb-6">
-                {state.spins.map((prize) => {
-                  const isSelected = state.selectedPrizeIds.includes(prize.prizeId);
-                  return (
-                    <label key={prize.prizeId} className={`flex items-start gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${isSelected ? 'border-[#d94343] bg-red-50' : 'border-gray-100 bg-gray-50'} ${state.isClaimed ? 'cursor-default' : ''}`}>
-                      <input type="checkbox" checked={isSelected}
-                        onChange={() => !state.isClaimed && togglePrize(prize.prizeId)}
-                        disabled={state.isClaimed || isSubmitting}
-                        className="mt-0.5 w-4 h-4 accent-[#d94343] shrink-0"
-                      />
-                      <div>
-                        <p className="font-bold text-gray-800 text-sm">{prize.prizeName}</p>
-                        {prize.condition && <p className="text-xs text-gray-400 mt-0.5">{prize.condition}</p>}
-                      </div>
-                    </label>
-                  );
-                })}
+                {state.spins.map((prize, i) => (
+                  <div key={prize.prizeId} className="flex items-start gap-3 p-3 rounded-xl border-2 border-[#d94343] bg-red-50">
+                    <span className="w-6 h-6 rounded-full bg-[#d94343] text-white text-xs font-black flex items-center justify-center shrink-0 mt-0.5">
+                      {i + 1}
+                    </span>
+                    <div>
+                      <p className="font-bold text-gray-800 text-sm">{prize.prizeName}</p>
+                      {prize.condition && <p className="text-xs text-gray-400 mt-0.5">{prize.condition}</p>}
+                    </div>
+                  </div>
+                ))}
               </div>
 
               {/* Form thông tin — chỉ hiện sau khi quay xong */}
